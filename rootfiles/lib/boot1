@@ -1,0 +1,84 @@
+############################################################
+# <bsn.cl fy=2013 v=onl>
+# 
+#        Copyright 2013, 2014 BigSwitch Networks, Inc.        
+# 
+# Licensed under the Eclipse Public License, Version 1.0 (the
+# "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at
+# 
+#        http://www.eclipse.org/legal/epl-v10.html
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+# either express or implied. See the License for the specific
+# language governing permissions and limitations under the
+# License.
+# 
+# </bsn.cl>
+############################################################
+#
+# boot1
+#
+# Loader stage 1
+#
+# Copies/mounts rootfs from swi and switches root
+#
+######################################################################
+
+if [ "$(cat /etc/onl_crashkernel 2>/dev/null)" ]; then
+   kexec --load-panic --initrd=/tmp/initrd --append="$(tr '\n' ' ' </tmp/append) dmamem=0 crashkernel=0 maxcpus=1 onl_kdump" /tmp/kernel
+fi
+
+mkdir -p /newroot
+umount -l /newroot 2>/dev/null || :
+rm -f /tmp/rc.boot /tmp/startup-config /tmp/version
+if [ -d "${swipath}" ]; then
+    # rootfs is a directory
+    mount --bind "${swipath}/${rootfs}" /newroot
+    [ ! -f "${swipath}/rc.boot" ] || cat "${swipath}/rc.boot" >/tmp/rc.boot
+    [ ! -f "${swipath}/startup-config" ] || cat "${swipath}/startup-config" >/tmp/startup-config
+    [ ! -f "${swipath}/version" ] || cat "${swipath}/version" >/tmp/version
+else
+    # rootfs is a squashfs
+    mkdir -p /newroot.lower /newroot.upper
+    umount -l /newroot.lower 2>/dev/null || :
+    umount -l /newroot.upper 2>/dev/null || :
+    rm -f /tmp/rootfs
+    unzip -pq "${swipath}" "${rootfs}.sqsh" >/tmp/rootfs
+    mount -t squashfs -o loop /tmp/rootfs /newroot.lower
+    mount -t tmpfs -o size=15%,mode=0755 none /newroot.upper
+    mount -t overlayfs -o lowerdir=/newroot.lower,upperdir=/newroot.upper none /newroot
+    unzip -oq "${swipath}" rc.boot -d /tmp 2>/dev/null || :
+    unzip -oq "${swipath}" startup-config -d /tmp 2>/dev/null || :
+    unzip -oq "${swipath}" version -d /tmp 2>/dev/null || :
+    case "${swipath}" in
+        */.ztn-*.swi)
+            swidir=$(dirname "${swipath}")
+            [ ! -f "${swidir}/.ztn-startup-config" ] || cat "${swidir}/.ztn-startup-config" >/tmp/startup-config
+        ;;
+    esac
+fi
+cat /etc/onl_platform >/newroot/etc/onl_platform
+cat /etc/onl_net >/newroot/etc/onl_net
+cat /etc/onl_block >/newroot/etc/onl_block
+cat /etc/onl_mounts >/newroot/etc/onl_mounts
+cat /etc/SWI >/newroot/etc/onl_swi
+if [ -f /tmp/rc.boot ]; then
+    cat /tmp/rc.boot >/newroot/etc/onl_rc.boot
+    chmod +x /newroot/etc/onl_rc.boot
+fi
+if [ -f /tmp/startup-config ]; then
+    cat /tmp/startup-config >/newroot/etc/onl_startup-config
+fi
+if [ -f /tmp/version ]; then
+    cat /tmp/version >/newroot/etc/onl_version
+fi
+if [ -f /etc/fw_env.config ]; then
+    cat /etc/fw_env.config >/newroot/etc/fw_env.config
+fi
+
+echo "Switching rootfs" # limit 16 chars since serial buffer is not flushed
+kill -QUIT 1 # exec /bin/switchroot as PID 1
+sleep 30

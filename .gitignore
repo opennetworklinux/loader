@@ -1,0 +1,5 @@
+*~
+rootfiles/lib/platform-config
+.setup.done
+buildroot-i386
+buildroot-powerpc

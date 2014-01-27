@@ -1,0 +1,5 @@
+PS1="loader# "
+echo
+echo "Welcome to the Open Network Linux Loader shell."
+echo "Type 'help' for command help"
+echo

@@ -1,0 +1,83 @@
+#!/bin/sh
+############################################################
+# <bsn.cl fy=2013 v=onl>
+# 
+#        Copyright 2013, 2014 BigSwitch Networks, Inc.        
+# 
+# Licensed under the Eclipse Public License, Version 1.0 (the
+# "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at
+# 
+#        http://www.eclipse.org/legal/epl-v10.html
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+# either express or implied. See the License for the specific
+# language governing permissions and limitations under the
+# License.
+# 
+# </bsn.cl>
+############################################################
+#
+# autoboot
+#
+# Automatic boot sequence.
+#
+############################################################
+
+
+tryagain() {
+    rm -f /etc/onl_stage1
+    exec $0 "$@"
+}
+
+
+if [ ! -f /etc/onl_stage1 ]; then
+    echo
+    echo
+    echo "Press Control-C now to enter loader shell"
+    sleep 3
+fi
+
+
+# If no SWI is configured, try to discover config settings via the network
+SWI=$(cat /etc/SWI)
+case "$SWI" in
+    "")
+        echo "Discovering SWI (stage1)"
+        discoverbootconf ma1
+        SWI=$(cat /etc/SWI)
+    ;;
+    flash*:.ztn-*)
+        if [ ! -f /etc/onl_stage1 ]; then
+            echo "(re)Discovering SWI via ZTN (stage0)"
+            discoverbootconf ma1
+            SWI=$(cat /etc/SWI)
+        fi
+    ;;
+esac
+
+# Configure the network interface
+ifup
+
+
+# Exit to the shell if there's still no SWI configured
+SWI=$(cat /etc/SWI)
+if [ ! "${SWI}" ]; then
+    if [ -f /etc/onl_stage1 ]; then
+        echo "No SWI specified on kernel command line"
+    else
+        echo "No SWI specified in boot configuration"
+    fi
+    tryagain
+fi
+
+
+# Boot the SWI
+if [ -f /etc/onl_stage1 ]; then
+    timeout -t 60 boot --nokexec "${SWI}" || tryagain
+else
+    echo "Booting ${SWI}"
+    timeout -t 60 boot "${SWI}" || tryagain
+fi
