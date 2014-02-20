@@ -1,5 +1,6 @@
 *~
 rootfiles/lib/platform-config
+rootfiles/usr/share/doc/*
 .setup.done
 buildroot-i386
 buildroot-powerpc
