@@ -29,6 +29,10 @@
 
 tryagain() {
     rm -f /etc/onl_stage1
+    # The timeout call to the boot script does not always kill stalled wgets properly. 
+    # If there are any lingering wgets because of a timeout in downloading
+    # lets make sure they die a proper death.
+    killall -9 wget
     exec $0 "$@"
 }
 
