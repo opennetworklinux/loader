@@ -1,44 +1,38 @@
 ############################################################
-# <bsn.cl fy=2013 v=onl>
-# 
-#        Copyright 2013, 2014 BigSwitch Networks, Inc.        
-# 
-# Licensed under the Eclipse Public License, Version 1.0 (the
-# "License"); you may not use this file except in compliance
-# with the License. You may obtain a copy of the License at
-# 
-#        http://www.eclipse.org/legal/epl-v10.html
-# 
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-# either express or implied. See the License for the specific
-# language governing permissions and limitations under the
-# License.
-# 
+# <bsn.cl fy=2013 v=none>
+#
+#        Copyright 2013, 2014 BigSwitch Networks, Inc.
+#
+#
+#
 # </bsn.cl>
 ############################################################
 #
-# Open Network Linux Loader
+# ONL Loader
 #
 ############################################################
 
 #
 # This system is designed to be built as a component
-# in the Open Network Linux distribution.
+# in the ONL distribution.
 #
 
 ifndef ONL
-$(error $$ONL is required to build the Open Network Linux Loader)
+$(error $$ONL is required to build the ONL Loader)
 endif
 
-.PHONY: all clean setup buildroot-powerpc buildroot-menuconfig-powerpc buildroot-i386
-.PHONY: buildroot-menuconfig-i386 busybox-menuconfig loader-quanta-lb9
+#
+# We build for these architectures
+#
+ARCHS := powerpc i386 x86_64
+BUILDROOT_ARCHDIRS := $(foreach a,$(ARCHS),buildroot-$(a))
 
-all: setup buildroot-powerpc buildroot-i386
+.PHONY: all clean setup $(BUILDROOT_ARCHDIRS)
+
+all: setup $(BUILDROOT_ARCHDIRS)
 
 clean:
-	rm -rf buildroot-powerpc buildroot-i386
+	rm -rf $(BUILDROOT_ARCHDIRS)
 
 
 #
@@ -70,7 +64,6 @@ platform-configs:
 	rm -rf rootfiles/lib/platform-config
 	$(foreach p,$(ONL_LOADER_PLATFORM_INCLUDE_LIST), $(ONL)/tools/onlpkg.py --build --extract rootfiles platform-config-$(p):all; )
 
-
 setup: platform-configs
 	cp $(wildcard patches/busybox*.patch) buildroot/package/busybox/
 	cp $(wildcard patches/kexec*.patch) buildroot/package/kexec/
@@ -81,41 +74,26 @@ setup: platform-configs
 	cp patches/jq.Config.in buildroot/package/jq/Config.in
 	sed -i '/[/]jq[/]/d' buildroot/package/Config.in
 	sed -i '/[/]yajl[/]/a\source "package/jq/Config.in"' buildroot/package/Config.in
-	mkdir -p buildroot-powerpc buildroot-i386
-	cp buildroot.config-powerpc buildroot-powerpc/.config
-	cp buildroot.config-i386 buildroot-i386/.config
-	make -C buildroot source O=../buildroot-powerpc
+	mkdir -p $(BUILDROOT_ARCHDIRS)
+	$(foreach a,$(ARCHS),cp buildroot.config-$(a) buildroot-$(a)/.config ;)
 
 
-buildroot-powerpc:
-	rm -fr buildroot-powerpc/rootfiles
-	mkdir -p buildroot-powerpc/rootfiles/etc
-	cp /dev/null buildroot-powerpc/rootfiles/etc/issue
-	if test "$(ONL_RELEASE)"; then :; else echo "missing ONL_RELEASE"; exit 1; fi ;\
-	echo "Open Network Linux Loader [$(ONL_RELEASE)]" >> buildroot-powerpc/rootfiles/etc/issue
-	echo "" >> buildroot-powerpc/rootfiles/etc/issue
-	make -C buildroot O=../buildroot-powerpc
+define buildroot_arch
+buildroot-$(1):
+	rm -fr buildroot-$(1)/rootfiles
+	mkdir -p buildroot-$(1)/rootfiles/etc
+	cp /dev/null buildroot-$(1)/rootfiles/etc/issue
+ifdef VERSION_FILE
+	cat $(VERSION_FILE) > buildroot-$(1)/rootfiles/etc/version.sh
+endif
+	make -C buildroot O=../buildroot-$(1)
 
+buildroot-menuconfig-$(1):
+	make -C buildroot menuconfig O=../buildroot-$(1)
+	cp buildroot-powerpc/.config buildroot.config-$(1)
+endef
 
-buildroot-menuconfig-powerpc:
-	make -C buildroot menuconfig O=../buildroot-powerpc
-	cp buildroot-powerpc/.config buildroot.config-powerpc
-
-
-buildroot-i386:
-	rm -fr buildroot-i386/rootfiles
-	mkdir -p buildroot-i386/rootfiles/etc
-	cp /dev/null buildroot-i386/rootfiles/etc/issue
-	if test "$(ONL_RELEASE)"; then :; else echo "missing ONL_RELEASE"; exit 1; fi ;\
-	echo "Open Network Linux Loader [$(ONL_RELEASE)]" >> buildroot-i386/rootfiles/etc/issue
-	echo "" >> buildroot-i386/rootfiles/etc/issue
-	make -C buildroot O=../buildroot-i386
-
-
-buildroot-menuconfig-i386:
-	make -C buildroot menuconfig O=../buildroot-i386
-	cp buildroot-i386/.config buildroot.config-i386
-
+$(foreach a,$(ARCHS),$(eval $(call buildroot_arch,$(a))))
 
 busybox-menuconfig:
 	make -C buildroot busybox-menuconfig O=../buildroot-powerpc
