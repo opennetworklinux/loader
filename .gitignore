@@ -4,3 +4,5 @@ rootfiles/usr/share/doc/*
 .setup.done
 buildroot-i386
 buildroot-powerpc
+buildroot-x86_64
+

@@ -11,6 +11,7 @@
 # ONL Loader
 #
 ############################################################
+include $(shell onl.config.powerpc.mk.sh)
 
 #
 # This system is designed to be built as a component
@@ -24,7 +25,7 @@ endif
 #
 # We build for these architectures
 #
-ARCHS := powerpc i386 x86_64
+ARCHS := powerpc x86_64
 BUILDROOT_ARCHDIRS := $(foreach a,$(ARCHS),buildroot-$(a))
 
 .PHONY: all clean setup $(BUILDROOT_ARCHDIRS)
@@ -45,11 +46,15 @@ clean:
 # These platform-config settings are included as part of the initrd build and used
 # by the ONL loader functionality to initialize a particular platform.
 #
-ifndef ONL_LOADER_PLATFORM_INCLUDE_LIST
-ONL_LOADER_PLATFORM_INCLUDE_LIST := $(shell ls $(ONL)/components/all/platform-config)
+ifndef ONL_LOADER_POWERPC_PLATFORM_CONFIGS
+ONL_LOADER_POWERPC_PLATFORM_CONFIGS := $(wildcard $(ONL)/packages/powerpc/platform-config/powerpc*)
 endif
+ONL_LOADER_POWERPC_PLATFORM_CONFIG_OPTIONS := $(foreach pc,$(ONL_LOADER_POWERPC_PLATFORM_CONFIGS),--extract-dir platform-config-$(notdir $(pc))-onl:powerpc rootfiles)
 
-$(info Building with support for the following platforms: $(ONL_LOADER_PLATFORM_INCLUDE_LIST))
+ifndef ONL_LOADER_AMD64_PLATFORM_CONFIGS
+ONL_LOADER_AMD64_PLATFORM_CONFIGS := $(wildcard $(ONL)/packages/amd64/platform-config/x86-64*)
+endif
+ONL_LOADER_AMD64_PLATFORM_CONFIG_OPTIONS := $(foreach pc,$(ONL_LOADER_AMD64_PLATFORM_CONFIGS),--extract-dir platform-config-$(notdir $(pc))-onl:amd64 rootfiles)
 
 #
 # The platform-config packages for each platform are ONL debian component packages.
@@ -60,11 +65,15 @@ $(info Building with support for the following platforms: $(ONL_LOADER_PLATFORM_
 # Ideally these packages would just be installed directly when the initrd moves to a
 # debian-based system.
 #
-platform-configs:
+powerpc-platform-configs:
 	rm -rf rootfiles/lib/platform-config
-	$(foreach p,$(ONL_LOADER_PLATFORM_INCLUDE_LIST), $(ONL)/tools/onlpkg.py --build --extract rootfiles platform-config-$(p):all; )
+	$(ONLPM) $(ONL_LOADER_POWERPC_PLATFORM_CONFIG_OPTIONS)
 
-setup: platform-configs
+amd64-platform-configs:
+	rm -rf rootfiles/lib/platform-config
+	$(ONLPM) $(ONL_LOADER_AMD64_PLATFORM_CONFIG_OPTIONS)
+
+setup:
 	cp $(wildcard patches/busybox*.patch) buildroot/package/busybox/
 	cp $(wildcard patches/kexec*.patch) buildroot/package/kexec/
 	sed -i 's%^DOSFSTOOLS_SITE =.*%DOSFSTOOLS_SITE = http://downloads.openwrt.org/sources%' buildroot/package/dosfstools/dosfstools.mk
